@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Aya's Tournament Payout Calculator </title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 1000px; margin: 40px auto; padding: 20px; }
+    label { display: block; margin-top: 12px; font-weight: bold; }
+    input { padding: 8px; width: 220px; margin-top: 4px; }
+    button { margin-top: 20px; padding: 10px 18px; font-size: 16px; cursor: pointer; }
+    .summary, .validation { margin-top: 25px; padding: 15px; background: #f7f7f7; border: 1px solid #ddd; }
+    table { border-collapse: collapse; margin-top: 25px; width: 100%; }
+    th, td { border: 1px solid #ccc; padding: 10px; text-align: right; }
+    th { background: #f2f2f2; }
+    .error { color: #b00020; font-weight: bold; }
+    .success { color: #067d22; font-weight: bold; }
+  </style>
+</head>
+
+<body>
+
+<h1>Aya's Tournament Payout Calculator</h1>
+
+<label>Number of Entries</label>
+<input type="number" id="entries" value="100">
+
+<label>Total Buy-In</label>
+<input type="number" id="buyIn" value="125">
+
+<label>Amount Going to Prize Pool</label>
+<input type="number" id="prizePoolAmount" value="95">
+
+<label>Percent of Field Paid</label>
+<input type="number" id="percentPaid" value="12">
+
+<label>Minimum Cash Multiplier</label>
+<input type="number" id="minCashMultiplier" value="2">
+
+<label>Round Payouts To Nearest</label>
+<input type="number" id="rounding" value="5">
+
+<br>
+<button onclick="calculatePayouts()">Calculate Payouts</button>
+
+<div id="summary" class="summary"></div>
+<div id="validation" class="validation"></div>
+<div id="results"></div>
+
+<script>
+function calculatePayouts() {
+  const settings = getSettings();
+  const tournament = buildTournament(settings);
+
+  if (!tournament.valid) {
+    showError(tournament.message);
+    return;
+  }
+
+  const bands = generateBands(tournament.paidPlaces);
+  const payouts = distributeMoney(bands, tournament);
+  const validation = validatePayouts(payouts, tournament);
+
+  displaySummary(tournament);
+  displayValidation(validation);
+  displayPayouts(payouts);
+}
+
+function getSettings() {
+  return {
+    entries: Number(document.getElementById("entries").value),
+    buyIn: Number(document.getElementById("buyIn").value),
+    prizePoolAmount: Number(document.getElementById("prizePoolAmount").value),
+    percentPaid: Number(document.getElementById("percentPaid").value),
+    minCashMultiplier: Number(document.getElementById("minCashMultiplier").value),
+    rounding: Number(document.getElementById("rounding").value)
+  };
+}
+
+function buildTournament(settings) {
+  const prizePool = settings.entries * settings.prizePoolAmount;
+  const paidPlaces = Math.ceil(settings.entries * (settings.percentPaid / 100));
+  const minCash = settings.buyIn * settings.minCashMultiplier;
+
+  if (settings.entries < 1) {
+    return { valid: false, message: "Entries must be greater than zero." };
+  }
+
+  if (paidPlaces * minCash > prizePool) {
+    return { valid: false, message: "Prize pool is too small for this min-cash structure." };
+  }
+
+  return {
+    valid: true,
+    entries: settings.entries,
+    buyIn: settings.buyIn,
+    prizePoolAmount: settings.prizePoolAmount,
+    percentPaid: settings.percentPaid,
+    minCashMultiplier: settings.minCashMultiplier,
+    rounding: settings.rounding,
+    prizePool,
+    paidPlaces,
+    minCash
+  };
+}
+
+function generateBands(paidPlaces) {
+  let bands = [];
+
+  const topIndividual = Math.min(9, paidPlaces);
+
+  for (let place = 1; place <= topIndividual; place++) {
+    bands.push(createBand(place, place));
+  }
+
+  let start = topIndividual + 1;
+
+  while (start <= paidPlaces) {
+    const size = getAutoBandSize(start, paidPlaces);
+    const end = Math.min(start + size - 1, paidPlaces);
+    bands.push(createBand(start, end));
+    start = end + 1;
+  }
+
+  return bands;
+}
+
+function getAutoBandSize(startPlace, paidPlaces) {
+  if (paidPlaces <= 12) {
+    if (startPlace >= 10) return 3;
+    return 1;
+  }
+
+  if (paidPlaces <= 30) {
+    if (startPlace <= 15) return 3;
+    return 5;
+  }
+
+  if (paidPlaces <= 60) {
+    if (startPlace <= 15) return 3;
+    if (startPlace <= 30) return 5;
+    return 10;
+  }
+
+  if (paidPlaces <= 150) {
+    if (startPlace <= 15) return 3;
+    if (startPlace <= 50) return 5;
+    return 10;
+  }
+
+  if (paidPlaces <= 300) {
+    if (startPlace <= 15) return 3;
+    if (startPlace <= 50) return 5;
+    if (startPlace <= 150) return 10;
+    return 20;
+  }
+
+  if (paidPlaces <= 600) {
+    if (startPlace <= 15) return 3;
+    if (startPlace <= 50) return 5;
+    if (startPlace <= 150) return 10;
+    if (startPlace <= 300) return 20;
+    return 25;
+  }
+
+  return 25;
+}
+
+function createBand(startPlace, endPlace) {
+  return {
+    startPlace,
+    endPlace,
+    count: endPlace - startPlace + 1
+  };
+}
+
+function distributeMoney(bands, tournament) {
+  const baseTotal = tournament.paidPlaces * tournament.minCash;
+  const extraPool = tournament.prizePool - baseTotal;
+
+  const weights = buildProgressiveWeights(bands.length);
+
+  const totalWeightedPlayers = bands.reduce((sum, band, index) => {
+    return sum + band.count * weights[index];
+  }, 0);
+
+  let payouts = bands.map((band, index) => {
+    const extraPerPlayer = totalWeightedPlayers > 0
+      ? extraPool * weights[index] / totalWeightedPlayers
+      : 0;
+
+    return {
+      ...band,
+      amount: roundDown(tournament.minCash + extraPerPlayer, tournament.rounding)
+    };
+  });
+
+  // Force the final/bottom band to exactly min cash.
+  payouts[payouts.length - 1].amount = tournament.minCash;
+
+  fixTotalByAdjustingFirst(payouts, tournament);
+
+  return payouts;
+}
+
+function buildProgressiveWeights(numberOfBands) {
+  let weights = [];
+
+  for (let i = 0; i < numberOfBands; i++) {
+    const fromBottom = numberOfBands - 1 - i;
+
+    if (fromBottom === 0) {
+      weights.push(0);
+    } else {
+      weights.push(Math.pow(fromBottom, 1.55));
+    }
+  }
+
+  return weights;
+}
+
+function fixTotalByAdjustingFirst(payouts, tournament) {
+  const totalPaid = getTotalPaid(payouts);
+  const difference = tournament.prizePool - totalPaid;
+
+  payouts[0].amount += difference;
+
+  if (payouts[0].amount < payouts[1]?.amount) {
+    payouts[0].amount = payouts[1].amount + tournament.rounding;
+  }
+}
+
+function validatePayouts(payouts, tournament) {
+  let errors = [];
+
+  const totalPaid = getTotalPaid(payouts);
+
+  if (totalPaid !== tournament.prizePool) {
+    errors.push(`Total paid is $${totalPaid.toLocaleString()}, but prize pool is $${tournament.prizePool.toLocaleString()}.`);
+  }
+
+  const bottomBand = payouts[payouts.length - 1];
+
+  if (bottomBand.amount !== tournament.minCash) {
+    errors.push(`Minimum cash should be $${tournament.minCash}, but bottom payout is $${bottomBand.amount}.`);
+  }
+
+  payouts.forEach(payout => {
+    if (payout.amount < tournament.minCash) {
+      errors.push(`${formatPlace(payout.startPlace)} pays less than minimum cash.`);
+    }
+  });
+
+  for (let i = 0; i < payouts.length - 1; i++) {
+    if (payouts[i].amount <= payouts[i + 1].amount) {
+      errors.push(`${formatRange(payouts[i])} should pay more than ${formatRange(payouts[i + 1])}.`);
+      break;
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors
+  };
+}
+
+function getTotalPaid(payouts) {
+  return payouts.reduce((sum, payout) => {
+    return sum + payout.amount * payout.count;
+  }, 0);
+}
+
+function roundDown(amount, rounding) {
+  return Math.floor(amount / rounding) * rounding;
+}
+
+function displaySummary(tournament) {
+  document.getElementById("summary").innerHTML = `
+    <h2>Summary</h2>
+    <p><strong>Entries:</strong> ${tournament.entries.toLocaleString()}</p>
+    <p><strong>Buy-In:</strong> $${tournament.buyIn.toLocaleString()}</p>
+    <p><strong>Prize Pool Contribution:</strong> $${tournament.prizePoolAmount.toLocaleString()}</p>
+    <p><strong>Total Prize Pool:</strong> $${tournament.prizePool.toLocaleString()}</p>
+    <p><strong>Places Paid:</strong> ${tournament.paidPlaces.toLocaleString()}</p>
+    <p><strong>Minimum Cash:</strong> $${tournament.minCash.toLocaleString()}</p>
+  `;
+}
+
+function displayValidation(validation) {
+  if (validation.valid) {
+    document.getElementById("validation").innerHTML = `
+      <p class="success">Validation passed: payout table is balanced.</p>
+    `;
+  } else {
+    document.getElementById("validation").innerHTML = `
+      <p class="error">Validation issues:</p>
+      <ul>
+        ${validation.errors.map(error => `<li>${error}</li>`).join("")}
+      </ul>
+    `;
+  }
+}
+
+function displayPayouts(payouts) {
+  let html = `
+    <table>
+      <thead>
+        <tr>
+          <th>Place(s)</th>
+          <th>Payout</th>
+          <th>Players</th>
+          <th>Total Paid for Band</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  payouts.forEach(payout => {
+    html += `
+      <tr>
+        <td>${formatRange(payout)}</td>
+        <td>$${payout.amount.toLocaleString()}</td>
+        <td>${payout.count}</td>
+        <td>$${(payout.amount * payout.count).toLocaleString()}</td>
+      </tr>
+    `;
+  });
+
+  html += `
+      </tbody>
+    </table>
+  `;
+
+  document.getElementById("results").innerHTML = html;
+}
+
+function formatRange(payout) {
+  if (payout.startPlace === payout.endPlace) {
+    return formatPlace(payout.startPlace);
+  }
+
+  return `${formatPlace(payout.startPlace)}-${formatPlace(payout.endPlace)}`;
+}
+
+function formatPlace(place) {
+  if (place === 1) return "1st";
+  if (place === 2) return "2nd";
+  if (place === 3) return "3rd";
+  return place + "th";
+}
+
+function showError(message) {
+  document.getElementById("summary").innerHTML = "";
+  document.getElementById("results").innerHTML = "";
+  document.getElementById("validation").innerHTML = `<p class="error">${message}</p>`;
+}
+
+calculatePayouts();
+</script>
+
+</body>
+</html>
