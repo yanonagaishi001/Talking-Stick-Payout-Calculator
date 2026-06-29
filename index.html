@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Aya's Tournament Payout Calculator </title>
+  <title>Poker Tournament Payout Calculator V2</title>
   <style>
     body { font-family: Arial, sans-serif; max-width: 1000px; margin: 40px auto; padding: 20px; }
     label { display: block; margin-top: 12px; font-weight: bold; }
@@ -18,7 +18,7 @@
 
 <body>
 
-<h1>Aya's Tournament Payout Calculator</h1>
+<h1>Talking Stick Tournament Payout Calculator V2</h1>
 
 <label>Number of Entries</label>
 <input type="number" id="entries" value="100">
@@ -61,7 +61,7 @@ function calculatePayouts() {
 
   displaySummary(tournament);
   displayValidation(validation);
-  displayPayouts(payouts);
+  displayPayouts(payouts, tournament.prizePool);
 }
 
 function getSettings() {
@@ -176,7 +176,7 @@ function distributeMoney(bands, tournament) {
   const baseTotal = tournament.paidPlaces * tournament.minCash;
   const extraPool = tournament.prizePool - baseTotal;
 
-  const weights = buildProgressiveWeights(bands.length);
+  const weights = buildProgressiveWeights(bands.length, tournament.entries);
 
   const totalWeightedPlayers = bands.reduce((sum, band, index) => {
     return sum + band.count * weights[index];
@@ -193,7 +193,6 @@ function distributeMoney(bands, tournament) {
     };
   });
 
-  // Force the final/bottom band to exactly min cash.
   payouts[payouts.length - 1].amount = tournament.minCash;
 
   fixTotalByAdjustingFirst(payouts, tournament);
@@ -201,7 +200,8 @@ function distributeMoney(bands, tournament) {
   return payouts;
 }
 
-function buildProgressiveWeights(numberOfBands) {
+function buildProgressiveWeights(numberOfBands, entries) {
+  const curvePower = getCurvePower(entries);
   let weights = [];
 
   for (let i = 0; i < numberOfBands; i++) {
@@ -210,11 +210,19 @@ function buildProgressiveWeights(numberOfBands) {
     if (fromBottom === 0) {
       weights.push(0);
     } else {
-      weights.push(Math.pow(fromBottom, 1.55));
+      weights.push(Math.pow(fromBottom, curvePower));
     }
   }
 
   return weights;
+}
+
+function getCurvePower(entries) {
+  if (entries <= 100) return 1.85;
+  if (entries <= 500) return 1.65;
+  if (entries <= 1000) return 1.45;
+  if (entries <= 2500) return 1.25;
+  return 1.10;
 }
 
 function fixTotalByAdjustingFirst(payouts, tournament) {
@@ -223,7 +231,7 @@ function fixTotalByAdjustingFirst(payouts, tournament) {
 
   payouts[0].amount += difference;
 
-  if (payouts[0].amount < payouts[1]?.amount) {
+  if (payouts.length > 1 && payouts[0].amount <= payouts[1].amount) {
     payouts[0].amount = payouts[1].amount + tournament.rounding;
   }
 }
@@ -299,13 +307,14 @@ function displayValidation(validation) {
   }
 }
 
-function displayPayouts(payouts) {
+function displayPayouts(payouts, prizePool) {
   let html = `
     <table>
       <thead>
         <tr>
           <th>Place(s)</th>
           <th>Payout</th>
+          <th>% of Prize Pool</th>
           <th>Players</th>
           <th>Total Paid for Band</th>
         </tr>
@@ -314,10 +323,13 @@ function displayPayouts(payouts) {
   `;
 
   payouts.forEach(payout => {
+    const payoutPercent = ((payout.amount / prizePool) * 100).toFixed(2);
+
     html += `
       <tr>
         <td>${formatRange(payout)}</td>
         <td>$${payout.amount.toLocaleString()}</td>
+        <td>${payoutPercent}%</td>
         <td>${payout.count}</td>
         <td>$${(payout.amount * payout.count).toLocaleString()}</td>
       </tr>
