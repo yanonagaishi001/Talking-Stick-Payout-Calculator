@@ -17,7 +17,7 @@
 </head>
 <body>
 
-<h1>Aya's Tournament Payout Calculator</h1>
+<h1>Poker Tournament Payout Calculator</h1>
 
 <label>Number of Entries</label>
 <input type="number" id="entries" value="100">
@@ -78,54 +78,31 @@ function getTournament() {
 }
 
 function generateBands(paidPlaces) {
-  if (paidPlaces >= 100) {
-    return generateLargeFieldBands(paidPlaces);
-  }
-
   const bands = [];
-  const topIndividual = Math.min(9, paidPlaces);
 
-  for (let place = 1; place <= topIndividual; place++) {
+  for (let place = 1; place <= Math.min(9, paidPlaces); place++) {
     bands.push({ startPlace: place, endPlace: place, count: 1 });
   }
 
-  let start = topIndividual + 1;
+  if (paidPlaces <= 9) return bands;
 
-  while (start <= paidPlaces) {
-    const size = getBandSize(start, paidPlaces);
-    const end = Math.min(start + size - 1, paidPlaces);
-    bands.push({ startPlace: start, endPlace: end, count: end - start + 1 });
-    start = end + 1;
-  }
-
-  return bands;
-}
-
-function generateLargeFieldBands(paidPlaces) {
-  const bands = [];
-
-  for (let place = 1; place <= 9; place++) {
-    bands.push({ startPlace: place, endPlace: place, count: 1 });
-  }
-
-  const ratios = [
-    0.031, 0.039, 0.050, 0.064, 0.081,
-    0.108, 0.125, 0.150, 0.183, 0.228,
-    0.286, 0.364, 0.464, 0.594, 0.767, 1.000
-  ];
+  const ratios = paidPlaces >= 100
+    ? [0.031, 0.039, 0.050, 0.064, 0.081, 0.108, 0.125, 0.150, 0.183, 0.228, 0.286, 0.364, 0.464, 0.594, 0.767, 1.000]
+    : getSmallFieldRatios(paidPlaces);
 
   let start = 10;
 
   ratios.forEach(ratio => {
-    const end = Math.max(start, Math.round(paidPlaces * ratio));
+    if (start > paidPlaces) return;
 
-    if (start <= paidPlaces) {
-      bands.push({
-        startPlace: start,
-        endPlace: Math.min(end, paidPlaces),
-        count: Math.min(end, paidPlaces) - start + 1
-      });
-    }
+    let end = Math.max(start, Math.round(paidPlaces * ratio));
+    end = Math.min(end, paidPlaces);
+
+    bands.push({
+      startPlace: start,
+      endPlace: end,
+      count: end - start + 1
+    });
 
     start = end + 1;
   });
@@ -133,88 +110,61 @@ function generateLargeFieldBands(paidPlaces) {
   return bands;
 }
 
-function getBandSize(startPlace, paidPlaces) {
-  if (paidPlaces <= 12) return startPlace >= 10 ? 3 : 1;
-  if (paidPlaces <= 30) return startPlace <= 15 ? 3 : 5;
-  if (paidPlaces <= 60) return startPlace <= 15 ? 3 : startPlace <= 30 ? 5 : 10;
-  return 10;
+function getSmallFieldRatios(paidPlaces) {
+  if (paidPlaces <= 12) return [1.000];
+  if (paidPlaces <= 24) return [0.50, 0.65, 0.82, 1.000];
+  if (paidPlaces <= 60) return [0.25, 0.35, 0.50, 0.67, 0.83, 1.000];
+  return [0.18, 0.25, 0.35, 0.50, 0.67, 0.83, 1.000];
 }
 
 function buildPayouts(bands, t) {
-  const payouts = bands.map(band => ({ ...band, amount: t.minCash }));
-
   const firstTarget = Math.round(t.prizePool * getFirstPlacePercent(t.entries));
+  const extraPool = t.prizePool - (t.paidPlaces * t.minCash);
+  const firstExtraTarget = Math.max(1, firstTarget - t.minCash);
+
+  const targetWeightTotal = extraPool / firstExtraTarget;
+  const ratio = findDecayRatio(bands, targetWeightTotal);
+
+  let payouts = bands.map((band, index) => {
+    const isBottom = index === bands.length - 1;
+    const weight = isBottom ? 0 : Math.pow(ratio, index);
+    const extra = extraPool * weight / targetWeightTotal;
+
+    return {
+      ...band,
+      amount: Math.round(t.minCash + extra)
+    };
+  });
+
   payouts[0].amount = firstTarget;
+  payouts[payouts.length - 1].amount = t.minCash;
 
-let currentAmount = t.minCash;
-payouts[payouts.length - 1].amount = currentAmount;
-
-for (let i = payouts.length - 2; i >= 9; i--) {
-  const stepsFromBottom = payouts.length - 1 - i;
-  const jump = getProgressiveJump(t.entries, stepsFromBottom);
-
-  currentAmount += jump;
-  payouts[i].amount = currentAmount;
-}
-
-  // Distribute the remaining prize pool across 2nd-9th
-  const moneyUsedOutsideTop =
-    payouts[0].amount +
-    payouts.slice(9).reduce((sum, p) => sum + p.amount * p.count, 0);
-
-  let remainingForTop = t.prizePool - moneyUsedOutsideTop;
-
-  const topWeights = [1.00, 0.76, 0.58, 0.44, 0.33, 0.25, 0.19, 0.14];
-  const totalWeight = topWeights.reduce((sum, w) => sum + w, 0);
-
-  for (let i = 1; i <= 8 && i < payouts.length; i++) {
-    payouts[i].amount = Math.round(remainingForTop * (topWeights[i - 1] / totalWeight));
-  }
-
-  enforceOrder(payouts, t);
-  forceExactTotal(payouts, t);
+  enforceDescending(payouts, t);
+  exactBalance(payouts, t);
 
   return payouts;
 }
 
-function getProgressiveJump(entries, stepsFromBottom) {
-  let baseJump;
+function findDecayRatio(bands, targetWeightTotal) {
+  let low = 0.01;
+  let high = 0.99;
 
-  if (entries <= 200) baseJump = 5;
-  else if (entries <= 500) baseJump = 10;
-  else if (entries <= 1000) baseJump = 15;
-  else if (entries <= 3000) baseJump = 25;
-  else baseJump = 40;
+  for (let i = 0; i < 80; i++) {
+    const mid = (low + high) / 2;
+    const total = getWeightedTotal(bands, mid);
 
-  return Math.round(baseJump * Math.pow(stepsFromBottom, 1.25));
+    if (total < targetWeightTotal) low = mid;
+    else high = mid;
+  }
+
+  return (low + high) / 2;
 }
 
-function enforceOrder(payouts, t) {
-  for (let i = payouts.length - 2; i >= 0; i--) {
-    if (payouts[i].amount <= payouts[i + 1].amount) {
-      payouts[i].amount = payouts[i + 1].amount + getBottomStep(t.entries);
-    }
-  }
-
-  payouts[payouts.length - 1].amount = t.minCash;
-}
-
-function forceExactTotal(payouts, t) {
-  let diff = t.prizePool - getTotalPaid(payouts);
-
-  // Adjust 2nd place first so 1st stays close to target.
-  if (payouts.length > 2) {
-    payouts[1].amount += diff;
-  } else {
-    payouts[0].amount += diff;
-  }
-
-  // Safety if 2nd gets too close to 1st.
-  if (payouts.length > 2 && payouts[1].amount >= payouts[0].amount) {
-    const excess = payouts[1].amount - payouts[0].amount + 1;
-    payouts[1].amount -= excess;
-    payouts[0].amount += excess;
-  }
+function getWeightedTotal(bands, ratio) {
+  return bands.reduce((sum, band, index) => {
+    if (index === bands.length - 1) return sum;
+    return sum + band.count * Math.pow(ratio, index);
+  }, 0);
 }
 
 function getFirstPlacePercent(entries) {
@@ -226,44 +176,6 @@ function getFirstPlacePercent(entries) {
   return 0.155;
 }
 
-function findBestPower(bands, t, firstTarget) {
-  let low = 0.1;
-  let high = 20;
-
-  for (let i = 0; i < 100; i++) {
-    const mid = (low + high) / 2;
-    const total = estimateTotal(bands, t, firstTarget, mid);
-
-    if (total > t.prizePool) low = mid;
-    else high = mid;
-  }
-
-  return (low + high) / 2;
-}
-
-function estimateTotal(bands, t, firstTarget, power) {
-  return bands.reduce((sum, band, index) => {
-    const progress = getProgress(index, bands.length);
-    const amount = Math.round(t.minCash + (firstTarget - t.minCash) * Math.pow(progress, power));
-    return sum + amount * band.count;
-  }, 0);
-}
-
-function getProgress(index, totalBands) {
-  if (totalBands <= 1) return 1;
-  return (totalBands - 1 - index) / (totalBands - 1);
-}
-
-function enforceDescending(payouts, t) {
-  payouts[payouts.length - 1].amount = t.minCash;
-
-  for (let i = payouts.length - 2; i >= 0; i--) {
-    if (payouts[i].amount <= payouts[i + 1].amount) {
-      payouts[i].amount = payouts[i + 1].amount + getMinJump(t.entries);
-    }
-  }
-}
-
 function getMinJump(entries) {
   if (entries <= 200) return 1;
   if (entries <= 500) return 5;
@@ -272,37 +184,40 @@ function getMinJump(entries) {
   return 50;
 }
 
-function rebalance(payouts, t) {
-  let diff = t.prizePool - getTotalPaid(payouts);
+function enforceDescending(payouts, t) {
+  const minJump = getMinJump(t.entries);
+  payouts[payouts.length - 1].amount = t.minCash;
 
-  while (diff !== 0) {
-    let changed = false;
-
-    if (diff > 0) {
-      for (let i = 1; i < payouts.length - 1; i++) {
-        if (payouts[i].amount + 1 < payouts[i - 1].amount) {
-          payouts[i].amount += 1;
-          diff -= payouts[i].count;
-          changed = true;
-          if (diff <= 0) break;
-        }
-      }
-    } else {
-      for (let i = payouts.length - 2; i >= 1; i--) {
-        if (payouts[i].amount - 1 > payouts[i + 1].amount && payouts[i].amount - 1 >= t.minCash) {
-          payouts[i].amount -= 1;
-          diff += payouts[i].count;
-          changed = true;
-          if (diff >= 0) break;
-        }
-      }
-    }
-
-    if (!changed) {
-      payouts[0].amount += diff;
-      diff = 0;
+  for (let i = payouts.length - 2; i >= 0; i--) {
+    if (payouts[i].amount <= payouts[i + 1].amount) {
+      payouts[i].amount = payouts[i + 1].amount + minJump;
     }
   }
+}
+
+function exactBalance(payouts, t) {
+  let diff = t.prizePool - getTotalPaid(payouts);
+
+  if (payouts.length > 1) {
+    payouts[1].amount += diff;
+  } else {
+    payouts[0].amount += diff;
+  }
+
+  if (payouts.length > 1 && payouts[1].amount >= payouts[0].amount) {
+    const move = payouts[1].amount - payouts[0].amount + 1;
+    payouts[1].amount -= move;
+    payouts[0].amount += move;
+  }
+
+  if (payouts.length > 2 && payouts[1].amount <= payouts[2].amount) {
+    const move = payouts[2].amount - payouts[1].amount + 1;
+    payouts[1].amount += move;
+    payouts[0].amount -= move;
+  }
+
+  const finalDiff = t.prizePool - getTotalPaid(payouts);
+  payouts[0].amount += finalDiff;
 }
 
 function validateAndDisplay(payouts, t) {
@@ -359,6 +274,7 @@ function displayPayouts(payouts, t) {
 
   payouts.forEach(payout => {
     const percent = ((payout.amount / t.prizePool) * 100).toFixed(2);
+
     html += `
       <tr>
         <td>${formatRange(payout)}</td>
