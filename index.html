@@ -136,20 +136,28 @@ function buildPayouts(bands, t) {
   if (jumpCount <= 0) return payouts;
 
   const extraPool = t.prizePool - (t.paidPlaces * t.minCash);
-  const firstTarget = Math.min(
+
+  const targetFirstAmount = Math.min(
     Math.round(t.prizePool * getTargetFirstPercent(t.entries)),
     Math.round(t.prizePool * FIRST_PLACE_CAP)
   );
 
-  const firstExtraTarget = Math.max(1, firstTarget - t.minCash);
-  const baseJump = getAffordableBaseJump(t, extraPool, bands);
-  const power = findBestJumpPower(bands, extraPool, firstExtraTarget, baseJump);
-  const jumps = buildProgressiveJumps(bands, extraPool, baseJump, power);
+  let targetFirstExtra = Math.max(1, targetFirstAmount - t.minCash);
+  let firstJump = getDesiredFirstJump(t);
+
+  if (firstJump * jumpCount > targetFirstExtra) {
+    firstJump = Math.max(1, Math.floor(targetFirstExtra / jumpCount));
+  }
+
+  const power = findBestPowerForCurve(bands, extraPool, targetFirstExtra, firstJump);
+  const jumps = buildProgressiveJumps(bands, targetFirstExtra, firstJump, power);
 
   applyJumps(payouts, jumps, t);
   balanceToPrizePool(payouts, t);
-  enforceStrictOrder(payouts, t);
+  repairOrder(payouts, t);
   balanceToPrizePool(payouts, t);
+  repairOrder(payouts, t);
+  finalExactCorrection(payouts, t);
 
   return payouts;
 }
@@ -188,54 +196,30 @@ function getTargetFirstPercent(entries) {
   return 0.16;
 }
 
-function getDesiredBaseJump(t) {
-  const buyInBasedJump = Math.round(t.buyIn * 0.125); // $50 for $400 buy-in
+function getDesiredFirstJump(t) {
+  const buyInBasedJump = Math.round(t.buyIn * 0.125);
 
   let entryBasedJump;
 
   if (t.entries <= 100) entryBasedJump = 25;
-  else if (t.entries <= 250) entryBasedJump = 35;
-  else if (t.entries <= 500) entryBasedJump = 50;
-  else if (t.entries <= 1000) entryBasedJump = 75;
-  else if (t.entries <= 3000) entryBasedJump = 100;
-  else entryBasedJump = 150;
+  else if (t.entries <= 250) entryBasedJump = 25;
+  else if (t.entries <= 500) entryBasedJump = 35;
+  else if (t.entries <= 1000) entryBasedJump = 50;
+  else if (t.entries <= 3000) entryBasedJump = 75;
+  else entryBasedJump = 100;
 
   return Math.max(buyInBasedJump, entryBasedJump);
 }
 
-function getAffordableBaseJump(t, extraPool, bands) {
-  const desired = getDesiredBaseJump(t);
-  const cost = getBaseJumpCost(bands, desired);
+function findBestPowerForCurve(bands, extraPool, targetFirstExtra, firstJump) {
+  let low = 0.05;
+  let high = 80;
 
-  if (cost <= extraPool) return desired;
-
-  const affordable = Math.floor(desired * (extraPool / cost));
-  return Math.max(1, affordable);
-}
-
-function getBaseJumpCost(bands, baseJump) {
-  let cost = 0;
-
-  for (let jumpIndex = 0; jumpIndex < bands.length - 1; jumpIndex++) {
-    const jumpNumber = jumpIndex + 1;
-    const jump = Math.round(baseJump * Math.pow(jumpNumber, 1.08));
-    const playersAbove = getPlayersAboveJump(bands, jumpIndex);
-    cost += jump * playersAbove;
-  }
-
-  return cost;
-}
-
-function findBestJumpPower(bands, extraPool, firstExtraTarget, baseJump) {
-  let low = 0.20;
-  let high = 5.00;
-
-  for (let i = 0; i < 70; i++) {
+  for (let i = 0; i < 90; i++) {
     const mid = (low + high) / 2;
-    const jumps = buildProgressiveJumps(bands, extraPool, baseJump, mid);
-    const firstExtra = jumps.reduce((sum, jump) => sum + jump, 0);
+    const estimated = estimateExtraPool(bands, targetFirstExtra, firstJump, mid);
 
-    if (firstExtra < firstExtraTarget) {
+    if (estimated > extraPool) {
       low = mid;
     } else {
       high = mid;
@@ -245,31 +229,21 @@ function findBestJumpPower(bands, extraPool, firstExtraTarget, baseJump) {
   return (low + high) / 2;
 }
 
-function buildProgressiveJumps(bands, extraPool, baseJump, power) {
+function buildProgressiveJumps(bands, targetFirstExtra, firstJump, power) {
   const jumpCount = bands.length - 1;
-  const baseJumps = [];
-  const curveWeights = [];
+  const weights = [];
 
   for (let i = 0; i < jumpCount; i++) {
-    const jumpNumber = i + 1;
-    baseJumps.push(Math.round(baseJump * Math.pow(jumpNumber, 1.08)));
-    curveWeights.push(Math.pow(jumpNumber, power));
+    weights.push(Math.pow(i + 1, power) - 1);
   }
 
-  let baseCost = 0;
-  let curveCost = 0;
+  const weightTotal = weights.reduce((sum, weight) => sum + weight, 0);
+  const baseTotal = firstJump * jumpCount;
+  const scalableExtra = Math.max(0, targetFirstExtra - baseTotal);
+  const scale = weightTotal > 0 ? scalableExtra / weightTotal : 0;
 
-  for (let i = 0; i < jumpCount; i++) {
-    const playersAbove = getPlayersAboveJump(bands, i);
-    baseCost += baseJumps[i] * playersAbove;
-    curveCost += curveWeights[i] * playersAbove;
-  }
-
-  const remainingExtra = Math.max(0, extraPool - baseCost);
-  const scale = curveCost > 0 ? remainingExtra / curveCost : 0;
-
-  const jumps = baseJumps.map((base, index) => {
-    return Math.max(1, Math.round(base + curveWeights[index] * scale));
+  const jumps = weights.map(weight => {
+    return Math.round(firstJump + weight * scale);
   });
 
   for (let i = 1; i < jumps.length; i++) {
@@ -279,6 +253,18 @@ function buildProgressiveJumps(bands, extraPool, baseJump, power) {
   }
 
   return jumps;
+}
+
+function estimateExtraPool(bands, targetFirstExtra, firstJump, power) {
+  const jumps = buildProgressiveJumps(bands, targetFirstExtra, firstJump, power);
+
+  let total = 0;
+
+  for (let jumpIndex = 0; jumpIndex < jumps.length; jumpIndex++) {
+    total += jumps[jumpIndex] * getPlayersAboveJump(bands, jumpIndex);
+  }
+
+  return total;
 }
 
 function applyJumps(payouts, jumps, t) {
@@ -299,9 +285,7 @@ function balanceToPrizePool(payouts, t) {
 
   if (diff > 0) {
     diff = addMoney(payouts, t, diff);
-  }
-
-  if (diff < 0) {
+  } else if (diff < 0) {
     diff = removeMoney(payouts, t, diff);
   }
 
@@ -362,7 +346,7 @@ function removeMoney(payouts, t, diff) {
   return -remaining;
 }
 
-function enforceStrictOrder(payouts, t) {
+function repairOrder(payouts, t) {
   payouts[payouts.length - 1].amount = t.minCash;
 
   for (let i = payouts.length - 2; i >= 0; i--) {
@@ -370,12 +354,11 @@ function enforceStrictOrder(payouts, t) {
       payouts[i].amount = payouts[i + 1].amount + 1;
     }
   }
+}
 
+function finalExactCorrection(payouts, t) {
   let diff = t.prizePool - getTotalPaid(payouts);
-
-  if (diff !== 0) {
-    payouts[0].amount += diff;
-  }
+  payouts[0].amount += diff;
 
   if (payouts.length > 1 && payouts[0].amount <= payouts[1].amount) {
     const needed = payouts[1].amount - payouts[0].amount + 1;
@@ -388,6 +371,8 @@ function enforceStrictOrder(payouts, t) {
   if (diff !== 0) {
     payouts[0].amount += diff;
   }
+
+  payouts[payouts.length - 1].amount = t.minCash;
 }
 
 function getPlayersAboveJump(bands, jumpIndexFromBottom) {
