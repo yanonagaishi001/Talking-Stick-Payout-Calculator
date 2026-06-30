@@ -142,7 +142,7 @@ function buildPayouts(bands, t) {
   );
 
   const firstExtraTarget = Math.max(1, firstTarget - t.minCash);
-  const baseJump = getAffordableBaseJump(t.entries, extraPool, bands);
+  const baseJump = getAffordableBaseJump(t, extraPool, bands);
   const power = findBestJumpPower(bands, extraPool, firstExtraTarget, baseJump);
   const jumps = buildProgressiveJumps(bands, extraPool, baseJump, power);
 
@@ -188,17 +188,23 @@ function getTargetFirstPercent(entries) {
   return 0.16;
 }
 
-function getDesiredBaseJump(entries) {
-  if (entries <= 100) return 25;
-  if (entries <= 250) return 10;
-  if (entries <= 500) return 18;
-  if (entries <= 1000) return 30;
-  if (entries <= 3000) return 45;
-  return 65;
+function getDesiredBaseJump(t) {
+  const buyInBasedJump = Math.round(t.buyIn * 0.125); // $50 for $400 buy-in
+
+  let entryBasedJump;
+
+  if (t.entries <= 100) entryBasedJump = 25;
+  else if (t.entries <= 250) entryBasedJump = 35;
+  else if (t.entries <= 500) entryBasedJump = 50;
+  else if (t.entries <= 1000) entryBasedJump = 75;
+  else if (t.entries <= 3000) entryBasedJump = 100;
+  else entryBasedJump = 150;
+
+  return Math.max(buyInBasedJump, entryBasedJump);
 }
 
-function getAffordableBaseJump(entries, extraPool, bands) {
-  const desired = getDesiredBaseJump(entries);
+function getAffordableBaseJump(t, extraPool, bands) {
+  const desired = getDesiredBaseJump(t);
   const cost = getBaseJumpCost(bands, desired);
 
   if (cost <= extraPool) return desired;
