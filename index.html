@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Payout Sheet Generator</title>
+<title>Math gotta Math</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;0,800;1,600&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
 
@@ -264,8 +264,8 @@ button.primary:hover{ background: var(--purple-deep); border-color: var(--purple
 </head>
 <body>
 <div class="wrap">
-  <div class="eyebrow">Tournament Payout Calculator</div>
-  <h1>Math gotta math sometimes</h1>
+  <div class="eyebrow">Tournament Calculator</div>
+  <h1>Payout Structure Sheet</h1>
   <p class="sub">Enter the buy-in and how much of it feeds the prize pool. Pays 12% of the field, floors the min-cash at 2&times; buy-in, and keeps every pay jump bigger than the one before it.</p>
 
   <div class="panel">
@@ -301,7 +301,7 @@ button.primary:hover{ background: var(--purple-deep); border-color: var(--purple
       </div>
       <div class="slider-row">
         <label for="curve">Payout curve shape</label>
-        <input type="range" id="curve" min="1.4" max="3.2" step="0.1" value="2.2">
+        <input type="range" id="curve" min="1.3" max="3.4" step="0.1" value="2.2">
         <div class="slider-labels"><span>Flatter</span><span>Standard</span><span>Top-heavy</span></div>
       </div>
     </div>
@@ -456,7 +456,7 @@ function render() {
   res.tiers.forEach((size, i) => {
     const pay = res.tierPayout[i];
     const label = size === 1 ? ordinal(place) : `${ordinal(place)}&ndash;${ordinal(place + size - 1)}`;
-    const pct = ((pay / prizePool) * 100).toFixed(1) + '%';
+    const pct = ((pay / prizePool) * 100).toFixed(2) + '%';
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><span class="place-tag"><span class="chip" style="background:${chipColor(place)}"></span>${label}</span></td>
@@ -510,7 +510,7 @@ $('exportCsv').addEventListener('click', () => {
   res.tiers.forEach((size, i) => {
     const pay = res.tierPayout[i];
     const label = size === 1 ? `${place}` : `${place}-${place + size - 1}`;
-    const pct = ((pay / prizePool) * 100).toFixed(1) + '%';
+    const pct = ((pay / prizePool) * 100).toFixed(2) + '%';
     const jump = i < res.tiers.length - 1 ? (res.tierPayout[i] - res.tierPayout[i + 1]) : '';
     rows.push([label, pay, pct, jump]);
     place += size;
