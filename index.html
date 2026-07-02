@@ -1,491 +1,533 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Poker Payout Calculator</title>
-  <style>
-    body { font-family: Arial, sans-serif; max-width: 1100px; margin: 40px auto; padding: 20px; }
-    label { display:block; margin-top:12px; font-weight:bold; }
-    input { padding:8px; width:220px; margin-top:4px; }
-    button { margin-top:20px; padding:10px 18px; font-size:16px; cursor:pointer; }
-    .box { margin-top:25px; padding:15px; background:#f7f7f7; border:1px solid #ddd; }
-    table { border-collapse:collapse; margin-top:25px; width:100%; }
-    th, td { border:1px solid #ccc; padding:10px; text-align:right; }
-    th { background:#f2f2f2; }
-    .success { color:green; font-weight:bold; }
-    .error { color:#b00020; font-weight:bold; }
-  </style>
+<meta charset="UTF-8">
+<title>Payout Sheet Generator</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;0,800;1,600&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
+
+:root{
+  --white: #FFFFFF;
+  --paper: #FBFAFD;
+  --ink: #15121C;
+  --ink-soft: #55506A;
+  --ink-faint: #8B85A0;
+  --purple: #9B7FDE;
+  --purple-deep: #6E4FC4;
+  --purple-pale: #EFE9FB;
+  --purple-line: rgba(110,79,196,0.30);
+  --silver: #A79BC4;
+  --bronze: #B79ADB;
+  --red: #93303B;
+  --line: rgba(21,18,28,0.14);
+}
+
+*{ box-sizing: border-box; }
+
+body{
+  margin:0;
+  background: var(--white);
+  color: var(--ink);
+  font-family: 'Inter', sans-serif;
+  padding: 32px 20px 60px;
+  min-height: 100vh;
+}
+
+.wrap{ max-width: 980px; margin: 0 auto; }
+
+.eyebrow{
+  font-family:'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--purple-deep);
+  margin: 0 0 10px;
+  display:flex; align-items:center; gap:10px;
+}
+.eyebrow::before{
+  content:"";
+  width: 26px; height:1px;
+  background: var(--purple-deep);
+  display:inline-block;
+}
+
+h1{
+  font-family: 'Playfair Display', serif;
+  font-weight: 800;
+  font-size: clamp(28px, 4vw, 44px);
+  margin: 0 0 10px;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.sub{
+  color: var(--ink-soft);
+  font-size: 14.5px;
+  margin: 0 0 28px;
+  max-width: 560px;
+  line-height: 1.6;
+}
+
+.panel{
+  background: var(--paper);
+  border: 1.5px solid var(--ink);
+  border-radius: 2px;
+  padding: 24px 26px;
+  margin-bottom: 20px;
+  position: relative;
+}
+.panel::before{
+  content:"";
+  position:absolute; inset:5px;
+  border: 1px solid var(--purple-line);
+  border-radius: 1px;
+  pointer-events:none;
+}
+
+.grid{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+label{
+  display:block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--purple-deep);
+  margin-bottom: 7px;
+  font-weight: 700;
+}
+
+.field-wrap{ position:relative; }
+.dollar{
+  position:absolute; left:12px; top:50%; transform:translateY(-50%);
+  color: var(--purple-deep); font-family:'IBM Plex Mono',monospace; font-size:14px; pointer-events:none;
+}
+
+input[type=number], select{
+  width:100%;
+  background: var(--white);
+  border: 1px solid rgba(21,18,28,0.28);
+  color: var(--ink);
+  font-family:'IBM Plex Mono', monospace;
+  font-size: 15px;
+  padding: 10px 12px 10px 26px;
+  border-radius: 4px;
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+select{ padding-left:12px; cursor:pointer; }
+input[type=number]:focus, select:focus{ border-color: var(--purple-deep); box-shadow: 0 0 0 3px var(--purple-pale); }
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button{ opacity: 0.6; }
+
+.slider-row{ grid-column: 1 / -1; }
+input[type=range]{
+  width:100%; accent-color: var(--purple-deep);
+  height: 4px;
+  margin-top: 8px;
+}
+.slider-labels{
+  display:flex; justify-content:space-between;
+  font-size: 10px; color: var(--ink-faint); text-transform:uppercase; letter-spacing:.06em;
+  margin-top: 4px;
+}
+
+.stats{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px,1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.stat{
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--purple);
+  border-radius: 2px;
+  padding: 16px 18px;
+}
+.stat .k{ font-size:10px; text-transform:uppercase; letter-spacing:.1em; color: var(--purple-deep); font-weight:700; }
+.stat .v{ font-family:'Playfair Display',serif; font-size: 26px; font-weight:700; margin-top:4px; color: var(--ink); }
+.stat .v.mono{ font-family:'IBM Plex Mono',monospace; }
+
+.warning{
+  background: #FBF0F1;
+  border: 1px solid rgba(147,48,59,0.4);
+  color: var(--red);
+  border-radius: 4px;
+  padding: 14px 18px;
+  font-size: 13.5px;
+  line-height:1.5;
+  margin-bottom: 20px;
+}
+.warning strong{ color: var(--red); }
+
+.skyline{
+  display:flex; align-items:flex-end; gap:3px;
+  height: 140px;
+  margin: 4px 0 6px;
+  padding: 0 2px;
+}
+.bar{
+  flex:1;
+  min-width: 3px;
+  border-radius: 2px 2px 0 0;
+  position: relative;
+  transition: height .3s ease;
+}
+.skyline-caption{
+  font-family:'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: var(--ink-faint);
+  display:flex; justify-content:space-between;
+  padding: 0 2px;
+  margin-bottom: 22px;
+}
+
+table{
+  width:100%;
+  border-collapse: collapse;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 14px;
+}
+thead th{
+  text-align:left;
+  font-family:'Inter',sans-serif;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--purple-deep);
+  font-weight:700;
+  padding: 0 14px 10px;
+  border-bottom: 1.5px solid var(--ink);
+}
+thead th:not(:first-child), tbody td:not(:first-child){ text-align:right; }
+
+tbody tr{ position:relative; }
+tbody td{
+  padding: 12px 14px;
+  border-bottom: 1px dashed var(--line);
+  color: var(--ink);
+}
+tbody tr:last-child td{ border-bottom:none; }
+tbody tr:hover{ background: var(--purple-pale); }
+
+.place-tag{
+  display:inline-flex; align-items:center; gap:8px;
+  font-weight:600;
+}
+.chip{
+  width:9px; height:9px; border-radius:50%;
+  display:inline-block; flex-shrink:0;
+}
+.payout-amt{ font-weight:700; font-size:15px; color: var(--ink); }
+.jump{ color: var(--purple-deep); font-size:12.5px; font-weight:600; }
+.jump.dash{ color: var(--ink-faint); opacity:.6; font-weight:400; }
+
+.actions{
+  display:flex; gap:12px; margin-top:18px; flex-wrap:wrap;
+}
+button{
+  font-family:'Inter',sans-serif;
+  font-weight:600;
+  font-size: 13px;
+  padding: 11px 20px;
+  border-radius: 4px;
+  border: 1.5px solid var(--ink);
+  background: var(--white);
+  color: var(--ink);
+  cursor:pointer;
+  transition: all .15s;
+}
+button:hover{ background: var(--purple-pale); border-color: var(--purple-deep); color: var(--purple-deep); }
+button.primary{
+  background: var(--ink);
+  color: var(--white);
+  border-color: var(--ink);
+}
+button.primary:hover{ background: var(--purple-deep); border-color: var(--purple-deep); color: var(--white); }
+
+.footnote{
+  font-size: 12px;
+  color: var(--ink-faint);
+  margin-top: 16px;
+  line-height:1.6;
+}
+
+@media (max-width: 560px){
+  .panel{ padding: 18px; }
+  thead th:nth-child(3), tbody td:nth-child(3){ display:none; }
+}
+</style>
 </head>
-
 <body>
+<div class="wrap">
+  <div class="eyebrow">Tournament Payout Calculator</div>
+  <h1>Math gotta math sometimes</h1>
+  <p class="sub">Enter the buy-in and how much of it feeds the prize pool. Pays 12% of the field, floors the min-cash at 2&times; buy-in, and keeps every pay jump bigger than the one before it.</p>
+
+  <div class="panel">
+    <div class="grid">
+      <div>
+        <label for="buyIn">Total buy-in</label>
+        <div class="field-wrap"><span class="dollar">$</span><input type="number" id="buyIn" value="125" min="0" step="1"></div>
+      </div>
+      <div>
+        <label for="toPool">Goes to prize pool</label>
+        <div class="field-wrap"><span class="dollar">$</span><input type="number" id="toPool" value="100" min="0" step="1"></div>
+      </div>
+      <div>
+        <label for="entries">Number of entries</label>
+        <input type="number" id="entries" value="100" min="1" step="1">
+      </div>
+      <div>
+        <label for="payPct">% of field paid</label>
+        <select id="payPct">
+          <option value="10">10%</option>
+          <option value="12" selected>12%</option>
+        </select>
+      </div>
+      <div>
+        <label for="inc">Round payouts to</label>
+        <select id="inc">
+          <option value="1">$1</option>
+          <option value="5" selected>$5</option>
+          <option value="10">$10</option>
+          <option value="25">$25</option>
+          <option value="100">$100</option>
+        </select>
+      </div>
+      <div class="slider-row">
+        <label for="curve">Payout curve shape</label>
+        <input type="range" id="curve" min="1.4" max="3.2" step="0.1" value="2.2">
+        <div class="slider-labels"><span>Flatter</span><span>Standard</span><span>Top-heavy</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="k">Prize Pool</div><div class="v mono" id="statPool">$0</div></div>
+    <div class="stat"><div class="k" id="statPlacesLabel">Places Paid (12%)</div><div class="v mono" id="statPlaces">0</div></div>
+    <div class="stat"><div class="k">Min Cash (2&times; buy-in)</div><div class="v mono" id="statMin">$0</div></div>
+    <div class="stat"><div class="k">1st Place</div><div class="v mono" id="statFirst">$0</div></div>
+  </div>
+
+  <div id="warningBox"></div>
+
+  <div class="panel" id="skylinePanel">
+    <div class="skyline" id="skyline"></div>
+    <div class="skyline-caption"><span>Last paid</span><span>1st place</span></div>
 
-<h1>Poker Tournament Payout Calculator</h1>
-
-<label>Number of Entries</label>
-<input type="number" id="entries" value="100">
-
-<label>Total Buy-In</label>
-<input type="number" id="buyIn" value="125">
-
-<label>Amount Going to Prize Pool</label>
-<input type="number" id="prizePoolAmount" value="95">
-
-<label>Percent of Field Paid</label>
-<input type="number" id="percentPaid" value="12">
-
-<label>Minimum Cash Multiplier</label>
-<input type="number" id="minCashMultiplier" value="2">
-
-<br>
-<button onclick="calculatePayouts()">Calculate Payouts</button>
-
-<div id="summary" class="box"></div>
-<div id="validation" class="box"></div>
-<div id="results"></div>
-
-<script>
-const FIRST_PLACE_CAP = 0.24;
-
-function calculatePayouts() {
-  const t = getTournament();
-
-  if (t.entries <= 0 || t.buyIn <= 0 || t.prizePoolAmount <= 0 || t.percentPaid <= 0) {
-    showError("Please enter valid positive numbers.");
-    return;
-  }
-
-  if (t.paidPlaces * t.minCash > t.prizePool) {
-    showError("Prize pool is too small for this minimum cash structure.");
-    return;
-  }
-
-  const bands = generateBands(t.paidPlaces);
-  const payouts = buildPayouts(bands, t);
-
-  displaySummary(t);
-  validateAndDisplay(payouts, t);
-  displayPayouts(payouts, t);
-}
-
-function getTournament() {
-  const entries = Number(document.getElementById("entries").value);
-  const buyIn = Number(document.getElementById("buyIn").value);
-  const prizePoolAmount = Number(document.getElementById("prizePoolAmount").value);
-  const percentPaid = Number(document.getElementById("percentPaid").value);
-  const minCashMultiplier = Number(document.getElementById("minCashMultiplier").value);
-
-  return {
-    entries,
-    buyIn,
-    prizePoolAmount,
-    percentPaid,
-    minCashMultiplier,
-    prizePool: Math.round(entries * prizePoolAmount),
-    paidPlaces: Math.ceil(entries * (percentPaid / 100)),
-    minCash: Math.round(buyIn * minCashMultiplier)
-  };
-}
-
-function generateBands(paidPlaces) {
-  const bands = [];
-
-  for (let place = 1; place <= Math.min(9, paidPlaces); place++) {
-    bands.push({ startPlace: place, endPlace: place, count: 1 });
-  }
-
-  if (paidPlaces <= 9) return bands;
-
-  const ratios = paidPlaces >= 100
-    ? [0.031, 0.039, 0.050, 0.064, 0.081, 0.108, 0.125, 0.150, 0.183, 0.228, 0.286, 0.364, 0.464, 0.594, 0.767, 1.000]
-    : getSmallFieldRatios(paidPlaces);
-
-  let start = 10;
-
-  ratios.forEach(ratio => {
-    if (start > paidPlaces) return;
-
-    let end = Math.round(paidPlaces * ratio);
-    end = Math.max(start, Math.min(end, paidPlaces));
-
-    bands.push({
-      startPlace: start,
-      endPlace: end,
-      count: end - start + 1
-    });
-
-    start = end + 1;
-  });
-
-  return bands;
-}
-
-function getSmallFieldRatios(paidPlaces) {
-  if (paidPlaces <= 12) return [1.000];
-  if (paidPlaces <= 24) return [0.50, 0.65, 0.82, 1.000];
-  if (paidPlaces <= 60) return [0.25, 0.35, 0.50, 0.67, 0.83, 1.000];
-  return [0.18, 0.25, 0.35, 0.50, 0.67, 0.83, 1.000];
-}
-
-function buildPayouts(bands, t) {
-  if (isApproved100EntryBaseline(t)) {
-    return getApproved100EntryBaseline();
-  }
-
-  const payouts = bands.map(band => ({ ...band, amount: t.minCash }));
-  const jumpCount = bands.length - 1;
-
-  if (jumpCount <= 0) return payouts;
-
-  const extraPool = t.prizePool - (t.paidPlaces * t.minCash);
-
-  const targetFirstAmount = Math.min(
-    Math.round(t.prizePool * getTargetFirstPercent(t.entries)),
-    Math.round(t.prizePool * FIRST_PLACE_CAP)
-  );
-
-  let targetFirstExtra = Math.max(1, targetFirstAmount - t.minCash);
-  let firstJump = getDesiredFirstJump(t);
-
-  if (firstJump * jumpCount > targetFirstExtra) {
-    firstJump = Math.max(1, Math.floor(targetFirstExtra / jumpCount));
-  }
-
-  const power = findBestPowerForCurve(bands, extraPool, targetFirstExtra, firstJump);
-  const jumps = buildProgressiveJumps(bands, targetFirstExtra, firstJump, power);
-
-  applyJumps(payouts, jumps, t);
-  balanceToPrizePool(payouts, t);
-  repairOrder(payouts, t);
-  balanceToPrizePool(payouts, t);
-  repairOrder(payouts, t);
-  finalExactCorrection(payouts, t);
-
-  return payouts;
-}
-
-function isApproved100EntryBaseline(t) {
-  return (
-    t.entries === 100 &&
-    t.buyIn === 125 &&
-    t.prizePoolAmount === 95 &&
-    t.paidPlaces === 12 &&
-    t.minCash === 250
-  );
-}
-
-function getApproved100EntryBaseline() {
-  return [
-    { startPlace: 1, endPlace: 1, count: 1, amount: 2280 },
-    { startPlace: 2, endPlace: 2, count: 1, amount: 1775 },
-    { startPlace: 3, endPlace: 3, count: 1, amount: 1334 },
-    { startPlace: 4, endPlace: 4, count: 1, amount: 993 },
-    { startPlace: 5, endPlace: 5, count: 1, amount: 743 },
-    { startPlace: 6, endPlace: 6, count: 1, amount: 563 },
-    { startPlace: 7, endPlace: 7, count: 1, amount: 433 },
-    { startPlace: 8, endPlace: 8, count: 1, amount: 344 },
-    { startPlace: 9, endPlace: 9, count: 1, amount: 285 },
-    { startPlace: 10, endPlace: 12, count: 3, amount: 250 }
-  ];
-}
-
-function getTargetFirstPercent(entries) {
-  if (entries <= 100) return 0.24;
-  if (entries <= 500) return 0.22;
-  if (entries <= 1000) return 0.20;
-  if (entries <= 2500) return 0.18;
-  if (entries <= 3500) return 0.17;
-  return 0.16;
-}
-
-function getDesiredFirstJump(t) {
-  const buyInBasedJump = Math.round(t.buyIn * 0.125);
-
-  let entryBasedJump;
-
-  if (t.entries <= 100) entryBasedJump = 25;
-  else if (t.entries <= 250) entryBasedJump = 25;
-  else if (t.entries <= 500) entryBasedJump = 35;
-  else if (t.entries <= 1000) entryBasedJump = 50;
-  else if (t.entries <= 3000) entryBasedJump = 75;
-  else entryBasedJump = 100;
-
-  return Math.max(buyInBasedJump, entryBasedJump);
-}
-
-function findBestPowerForCurve(bands, extraPool, targetFirstExtra, firstJump) {
-  let low = 0.05;
-  let high = 80;
-
-  for (let i = 0; i < 90; i++) {
-    const mid = (low + high) / 2;
-    const estimated = estimateExtraPool(bands, targetFirstExtra, firstJump, mid);
-
-    if (estimated > extraPool) {
-      low = mid;
-    } else {
-      high = mid;
-    }
-  }
-
-  return (low + high) / 2;
-}
-
-function buildProgressiveJumps(bands, targetFirstExtra, firstJump, power) {
-  const jumpCount = bands.length - 1;
-  const weights = [];
-
-  for (let i = 0; i < jumpCount; i++) {
-    weights.push(Math.pow(i + 1, power) - 1);
-  }
-
-  const weightTotal = weights.reduce((sum, weight) => sum + weight, 0);
-  const baseTotal = firstJump * jumpCount;
-  const scalableExtra = Math.max(0, targetFirstExtra - baseTotal);
-  const scale = weightTotal > 0 ? scalableExtra / weightTotal : 0;
-
-  const jumps = weights.map(weight => {
-    return Math.round(firstJump + weight * scale);
-  });
-
-  for (let i = 1; i < jumps.length; i++) {
-    if (jumps[i] <= jumps[i - 1]) {
-      jumps[i] = jumps[i - 1] + 1;
-    }
-  }
-
-  return jumps;
-}
-
-function estimateExtraPool(bands, targetFirstExtra, firstJump, power) {
-  const jumps = buildProgressiveJumps(bands, targetFirstExtra, firstJump, power);
-
-  let total = 0;
-
-  for (let jumpIndex = 0; jumpIndex < jumps.length; jumpIndex++) {
-    total += jumps[jumpIndex] * getPlayersAboveJump(bands, jumpIndex);
-  }
-
-  return total;
-}
-
-function applyJumps(payouts, jumps, t) {
-  const bottomIndex = payouts.length - 1;
-  payouts[bottomIndex].amount = t.minCash;
-
-  let current = t.minCash;
-
-  for (let i = bottomIndex - 1; i >= 0; i--) {
-    const jumpIndex = bottomIndex - i - 1;
-    current += jumps[jumpIndex] || 1;
-    payouts[i].amount = current;
-  }
-}
-
-function balanceToPrizePool(payouts, t) {
-  let diff = t.prizePool - getTotalPaid(payouts);
-
-  if (diff > 0) {
-    diff = addMoney(payouts, t, diff);
-  } else if (diff < 0) {
-    diff = removeMoney(payouts, t, diff);
-  }
-
-  if (diff !== 0) {
-    payouts[0].amount += diff;
-  }
-
-  payouts[payouts.length - 1].amount = t.minCash;
-}
-
-function addMoney(payouts, t, diff) {
-  const firstCap = Math.round(t.prizePool * FIRST_PLACE_CAP);
-
-  if (payouts[0].amount < firstCap) {
-    const add = Math.min(firstCap - payouts[0].amount, diff);
-    payouts[0].amount += add;
-    diff -= add;
-  }
-
-  for (let i = 1; i < payouts.length - 1 && diff > 0; i++) {
-    const room = payouts[i - 1].amount - payouts[i].amount - 1;
-    const addPerPlayer = Math.min(room, Math.floor(diff / payouts[i].count));
-
-    if (addPerPlayer > 0) {
-      payouts[i].amount += addPerPlayer;
-      diff -= addPerPlayer * payouts[i].count;
-    }
-  }
-
-  return diff;
-}
-
-function removeMoney(payouts, t, diff) {
-  let remaining = Math.abs(diff);
-
-  for (let i = payouts.length - 2; i >= 1 && remaining > 0; i--) {
-    const floor = Math.max(t.minCash, payouts[i + 1].amount + 1);
-    const room = payouts[i].amount - floor;
-    const removePerPlayer = Math.min(room, Math.ceil(remaining / payouts[i].count));
-
-    if (removePerPlayer > 0) {
-      payouts[i].amount -= removePerPlayer;
-      remaining -= removePerPlayer * payouts[i].count;
-    }
-  }
-
-  if (remaining > 0) {
-    const minFirst = payouts.length > 1 ? payouts[1].amount + 1 : t.minCash;
-    const room = payouts[0].amount - minFirst;
-    const remove = Math.min(room, remaining);
-
-    if (remove > 0) {
-      payouts[0].amount -= remove;
-      remaining -= remove;
-    }
-  }
-
-  return -remaining;
-}
-
-function repairOrder(payouts, t) {
-  payouts[payouts.length - 1].amount = t.minCash;
-
-  for (let i = payouts.length - 2; i >= 0; i--) {
-    if (payouts[i].amount <= payouts[i + 1].amount) {
-      payouts[i].amount = payouts[i + 1].amount + 1;
-    }
-  }
-}
-
-function finalExactCorrection(payouts, t) {
-  let diff = t.prizePool - getTotalPaid(payouts);
-  payouts[0].amount += diff;
-
-  if (payouts.length > 1 && payouts[0].amount <= payouts[1].amount) {
-    const needed = payouts[1].amount - payouts[0].amount + 1;
-    payouts[0].amount += needed;
-    payouts[1].amount -= needed;
-  }
-
-  diff = t.prizePool - getTotalPaid(payouts);
-
-  if (diff !== 0) {
-    payouts[0].amount += diff;
-  }
-
-  payouts[payouts.length - 1].amount = t.minCash;
-}
-
-function getPlayersAboveJump(bands, jumpIndexFromBottom) {
-  const bottomIndex = bands.length - 1;
-  const firstAffected = bottomIndex - jumpIndexFromBottom - 1;
-
-  let total = 0;
-
-  for (let i = 0; i <= firstAffected; i++) {
-    total += bands[i].count;
-  }
-
-  return total;
-}
-
-function validateAndDisplay(payouts, t) {
-  const errors = [];
-  const totalPaid = getTotalPaid(payouts);
-
-  if (totalPaid !== t.prizePool) {
-    errors.push(`Total paid is $${totalPaid.toLocaleString()}, but prize pool is $${t.prizePool.toLocaleString()}.`);
-  }
-
-  if (payouts[payouts.length - 1].amount !== t.minCash) {
-    errors.push(`Minimum cash should be $${t.minCash.toLocaleString()}.`);
-  }
-
-  if (payouts[0].amount > Math.round(t.prizePool * FIRST_PLACE_CAP)) {
-    errors.push(`1st place is above the ${(FIRST_PLACE_CAP * 100).toFixed(0)}% cap.`);
-  }
-
-  for (let i = 0; i < payouts.length - 1; i++) {
-    if (payouts[i].amount <= payouts[i + 1].amount) {
-      errors.push(`${formatRange(payouts[i])} should pay more than ${formatRange(payouts[i + 1])}.`);
-      break;
-    }
-  }
-
-  document.getElementById("validation").innerHTML = errors.length === 0
-    ? `<p class="success">Validation passed: payout table is balanced.</p>`
-    : `<p class="error">Validation issues:</p><ul>${errors.map(e => `<li>${e}</li>`).join("")}</ul>`;
-}
-
-function displaySummary(t) {
-  document.getElementById("summary").innerHTML = `
-    <h2>Summary</h2>
-    <p><strong>Entries:</strong> ${t.entries.toLocaleString()}</p>
-    <p><strong>Buy-In:</strong> $${t.buyIn.toLocaleString()}</p>
-    <p><strong>Prize Pool Contribution:</strong> $${t.prizePoolAmount.toLocaleString()}</p>
-    <p><strong>Total Prize Pool:</strong> $${t.prizePool.toLocaleString()}</p>
-    <p><strong>Places Paid:</strong> ${t.paidPlaces.toLocaleString()}</p>
-    <p><strong>Minimum Cash:</strong> $${t.minCash.toLocaleString()}</p>
-    <p><strong>1st Place Cap:</strong> ${(FIRST_PLACE_CAP * 100).toFixed(0)}%</p>
-  `;
-}
-
-function displayPayouts(payouts, t) {
-  let html = `
     <table>
       <thead>
-        <tr>
-          <th>Place(s)</th>
-          <th>Payout</th>
-          <th>% of Prize Pool</th>
-          <th>Players</th>
-          <th>Total Paid for Band</th>
-        </tr>
+        <tr><th>Place</th><th>Payout</th><th>% of Pool</th><th>Jump</th></tr>
       </thead>
-      <tbody>
-  `;
+      <tbody id="tableBody"></tbody>
+    </table>
 
-  payouts.forEach(payout => {
-    const percent = ((payout.amount / t.prizePool) * 100).toFixed(2);
+    <div class="actions">
+      <button class="primary" id="exportCsv">Export CSV</button>
+      <button id="printSheet">Print Sheet</button>
+    </div>
+    <p class="footnote">1st through 9th always get individual payouts (or all paid places, if fewer than 9 cash). Beyond 9th, places are grouped into tiers the way most rooms post them (e.g. "10th&ndash;12th"). Every jump &mdash; individual or tier-to-tier &mdash; is strictly larger than the jump below it, and the last paid place always pays exactly 2&times; the buy-in unless the pool can't support it, in which case you'll see a warning above.</p>
+  </div>
+</div>
 
-    html += `
-      <tr>
-        <td>${formatRange(payout)}</td>
-        <td>$${payout.amount.toLocaleString()}</td>
-        <td>${percent}%</td>
-        <td>${payout.count}</td>
-        <td>$${(payout.amount * payout.count).toLocaleString()}</td>
-      </tr>
-    `;
+<script>
+function buildTiers(N) {
+  const tiers = [];
+  let remaining = N;
+  const individualCount = Math.min(9, N);
+  for (let i = 0; i < individualCount; i++) { tiers.push(1); remaining -= 1; }
+  let size = 3;
+  while (remaining > 0) {
+    const s = Math.min(size, remaining);
+    tiers.push(s);
+    remaining -= s;
+    size = Math.max(1, Math.ceil(size * 1.6));
+  }
+  return tiers;
+}
+
+function generatePayouts({prizePool, minCash, N, p, inc}) {
+  if (N <= 0) return {error: "No places to pay at this field size."};
+  const tiers = buildTiers(N);
+  const T = tiers.length;
+  if (T === 1) {
+    const pay = Math.round(prizePool / N / inc) * inc;
+    return {tiers, tierPayout: [pay], sum: pay * N, error: null};
+  }
+  const available = prizePool - minCash * N;
+  if (available < 0) {
+    return {error: `This prize pool can't cover the $${minCash.toLocaleString()} minimum cash for all ${N} paid places. Increase entries, raise the prize-pool contribution, or lower buy-in.`};
+  }
+  let weightSum = 0;
+  for (let i = 0; i < T; i++) weightSum += Math.pow(T - 1 - i, p) * tiers[i];
+  const k = weightSum === 0 ? 0 : available / weightSum;
+  let tierPayout = tiers.map((_, i) => minCash + k * Math.pow(T - 1 - i, p));
+  tierPayout = tierPayout.map(v => Math.round(v / inc) * inc);
+  if (tierPayout[T - 1] < minCash) tierPayout[T - 1] = Math.ceil(minCash / inc) * inc;
+
+  for (let i = T - 3; i >= 0; i--) {
+    const jumpBelow = tierPayout[i + 1] - tierPayout[i + 2];
+    const jumpHere = tierPayout[i] - tierPayout[i + 1];
+    if (jumpHere <= jumpBelow) tierPayout[i] = tierPayout[i + 1] + jumpBelow + inc;
+  }
+
+  let sum = tierPayout.reduce((a, v, i) => a + v * tiers[i], 0);
+  const diff = prizePool - sum;
+  tierPayout[0] = Math.round(tierPayout[0] + diff / tiers[0]);
+  sum = tierPayout.reduce((a, v, i) => a + v * tiers[i], 0);
+
+  return {tiers, tierPayout, sum, error: null};
+}
+
+const $ = id => document.getElementById(id);
+const fmt = n => '$' + Math.round(n).toLocaleString();
+
+function chipColor(rank) {
+  if (rank === 1) return 'var(--purple-deep)';
+  if (rank === 2) return 'var(--purple)';
+  if (rank === 3) return 'var(--bronze)';
+  return 'var(--silver)';
+}
+
+function render() {
+  const buyIn = parseFloat($('buyIn').value) || 0;
+  const toPool = parseFloat($('toPool').value) || 0;
+  const entries = parseInt($('entries').value) || 0;
+  const inc = parseFloat($('inc').value);
+  const p = parseFloat($('curve').value);
+  const payPct = parseFloat($('payPct').value) / 100;
+
+  const prizePool = toPool * entries;
+  const N = Math.max(1, Math.round(entries * payPct));
+  const minCash = 2 * buyIn;
+
+  $('statPlacesLabel').textContent = `Places Paid (${$('payPct').value}%)`;
+
+  $('statPool').textContent = fmt(prizePool);
+  $('statPlaces').textContent = N + (entries ? ` of ${entries}` : '');
+  $('statMin').textContent = fmt(minCash);
+
+  const warningBox = $('warningBox');
+  const skylinePanel = $('skylinePanel');
+
+  if (!buyIn || !toPool || !entries) {
+    warningBox.innerHTML = '';
+    skylinePanel.style.display = 'none';
+    $('statFirst').textContent = '$0';
+    return;
+  }
+
+  const res = generatePayouts({prizePool, minCash, N, p, inc});
+
+  if (res.error) {
+    warningBox.innerHTML = `<div class="warning"><strong>Can't build a valid sheet:</strong> ${res.error}</div>`;
+    skylinePanel.style.display = 'none';
+    $('statFirst').textContent = '—';
+    return;
+  }
+
+  warningBox.innerHTML = '';
+  skylinePanel.style.display = 'block';
+  $('statFirst').textContent = fmt(res.tierPayout[0]);
+
+  // skyline bars
+  const skyline = $('skyline');
+  skyline.innerHTML = '';
+  const maxPay = res.tierPayout[0];
+  res.tierPayout.forEach((pay, i) => {
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    const h = Math.max(4, (pay / maxPay) * 130);
+    bar.style.height = h + 'px';
+    bar.style.background = chipColor(i + 1);
+    bar.title = fmt(pay);
+    skyline.appendChild(bar);
   });
 
-  html += `</tbody></table>`;
-  document.getElementById("results").innerHTML = html;
+  // table
+  const tbody = $('tableBody');
+  tbody.innerHTML = '';
+  let place = 1;
+  res.tiers.forEach((size, i) => {
+    const pay = res.tierPayout[i];
+    const label = size === 1 ? ordinal(place) : `${ordinal(place)}&ndash;${ordinal(place + size - 1)}`;
+    const pct = ((pay / prizePool) * 100).toFixed(1) + '%';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><span class="place-tag"><span class="chip" style="background:${chipColor(place)}"></span>${label}</span></td>
+      <td class="payout-amt">${fmt(pay)}</td>
+      <td>${pct}</td>
+      <td id="jumpcell-${i}"></td>
+    `;
+    tbody.appendChild(tr);
+    place += size;
+  });
+
+  // fill jump column: jump = payout of this tier minus payout of tier below it (next row down = smaller payout)
+  for (let i = 0; i < res.tiers.length; i++) {
+    const cell = document.getElementById(`jumpcell-${i}`);
+    if (i === res.tiers.length - 1) {
+      cell.innerHTML = '<span class="jump dash">base</span>';
+    } else {
+      const jump = res.tierPayout[i] - res.tierPayout[i + 1];
+      cell.innerHTML = `<span class="jump">+${fmt(jump)}</span>`;
+    }
+  }
+
+  window._lastResult = {res, prizePool, N, minCash, buyIn, toPool, entries};
 }
 
-function getTotalPaid(payouts) {
-  return payouts.reduce((sum, payout) => sum + payout.amount * payout.count, 0);
+function ordinal(n) {
+  const s = ["th", "st", "nd", "rd"], v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
-function formatRange(payout) {
-  if (payout.startPlace === payout.endPlace) return formatPlace(payout.startPlace);
-  return `${formatPlace(payout.startPlace)}-${formatPlace(payout.endPlace)}`;
-}
+['buyIn','toPool','entries','inc','curve','payPct'].forEach(id => {
+  $(id).addEventListener('input', render);
+});
 
-function formatPlace(place) {
-  if (place === 1) return "1st";
-  if (place === 2) return "2nd";
-  if (place === 3) return "3rd";
-  return place + "th";
-}
+$('exportCsv').addEventListener('click', () => {
+  if (!window._lastResult) return;
+  const {res, prizePool, N, minCash, buyIn, toPool, entries} = window._lastResult;
+  let rows = [
+    ['Payout Sheet'],
+    ['Buy-in', buyIn],
+    ['To prize pool (per entry)', toPool],
+    ['Entries', entries],
+    ['Prize Pool', prizePool],
+    ['% of Field Paid', $('payPct').value + '%'],
+    ['Places Paid', N],
+    ['Min Cash', minCash],
+    [],
+    ['Place', 'Payout', '% of Pool', 'Jump']
+  ];
+  let place = 1;
+  res.tiers.forEach((size, i) => {
+    const pay = res.tierPayout[i];
+    const label = size === 1 ? `${place}` : `${place}-${place + size - 1}`;
+    const pct = ((pay / prizePool) * 100).toFixed(1) + '%';
+    const jump = i < res.tiers.length - 1 ? (res.tierPayout[i] - res.tierPayout[i + 1]) : '';
+    rows.push([label, pay, pct, jump]);
+    place += size;
+  });
+  const csv = rows.map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], {type: 'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `payout-sheet-${entries}-entries.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
 
-function showError(message) {
-  document.getElementById("summary").innerHTML = "";
-  document.getElementById("results").innerHTML = "";
-  document.getElementById("validation").innerHTML = `<p class="error">${message}</p>`;
-}
+$('printSheet').addEventListener('click', () => window.print());
 
-calculatePayouts();
+render();
 </script>
-
 </body>
 </html>
